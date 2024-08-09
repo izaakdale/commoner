@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,21 +15,16 @@ import (
 )
 
 func Run(ctx context.Context, addr string, hz, burst int) error {
-	lsAddrPort, err := netip.ParseAddrPort(addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-REDIAL:
-	udpLsAddr := net.UDPAddrFromAddrPort(lsAddrPort)
-	dial, err := net.DialUDP("udp", nil, udpLsAddr)
+
+	conn, err := net.Dial("udp", addr)
 	if err != nil {
 		log.Printf("error dialing: %s\n", err.Error())
-		goto REDIAL
+		return Run(ctx, addr, hz, burst)
 	}
 
 	name := uuid.NewString()
 
-	enc := json.NewEncoder(dial)
+	enc := json.NewEncoder(conn)
 	lm := rate.NewLimiter(rate.Every(time.Second/time.Duration(hz)), burst)
 	for {
 		select {
@@ -42,12 +36,12 @@ REDIAL:
 			}
 			out := udpserver.RemoteServer{
 				Name: name,
-				Addr: dial.LocalAddr().String(),
+				Addr: conn.LocalAddr().String(),
 			}
 			if err := enc.Encode(out); err != nil {
 				oe := &net.OpError{}
 				if errors.As(err, &oe) {
-					goto REDIAL
+					return Run(ctx, addr, hz, burst)
 				}
 				log.Printf("error encoding message: %s", err.Error())
 				continue

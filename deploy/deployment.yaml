@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
       - name: commoner
-        image: izaakdale/commoner
+        image: ko://github.com/izaakdale/commoner
         env:
         - name: API_ADDR
           value: ":80"
