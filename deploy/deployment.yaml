@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commoner
+spec:
+  selector:
+    matchLabels:
+      app: commoner
+  template:
+    metadata:
+      labels:
+        app: commoner
+    spec:
+      containers:
+      - name: commoner
+        image: izaakdale/commoner
+        env:
+        - name: API_ADDR
+          value: ":80"
+        - name: UDP_DIAL_ADDR
+          value: "commoner.default.svc.cluster.local:7777"
+        - name: UDP_LISTEN_ADDR
+          value: "0.0.0.0:7777"
+        - name: BROADCAST_FREQ_HZ
+          value: "1000"
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 80
+          name:  http
+        - containerPort: 7777
+          name:  udp
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: commoner
+spec:
+  selector:
+    app: commoner
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  - port: 7777
+    targetPort: 7777
+    name: udp
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: commoner
+  namespace: default
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: HostRegexp(`^(?:[^.]+\.)?izaakserver\.com$`) && PathPrefix(`/commoner`)
+      services:
+        - kind: Service
+          name: commoner
+          namespace: default
+          port: 80
